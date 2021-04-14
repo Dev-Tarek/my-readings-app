@@ -1,30 +1,22 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import * as BooksAPI from '../../BooksAPI';
-import bookShelvesValues from '../../bookShelvesValues';
+import Book from '../components/Book';
+import SearchBar from '../components/SearchBar';
 
 class Search extends React.Component {
     state = {
       query: '',
-      books: [],
+      results: [],
       maxResults: 20,
-      myBooks: [],
     }
 
-	componentDidMount(){
-      this.fetchAllBooks();
-    }
-
-	fetchAllBooks = () => BooksAPI.getAll().then(allBooks => this.setState({ myBooks: allBooks }));
-
-    handleBookUpdate = (event, book) => {
-      const shelf = event.target.value;
+    handleResultUpdate = (shelf, book) => {
       if(book.shelf === shelf)
         return;
-      book.shelf = shelf;
-      this.setState(currentState => ({
-          books: [...currentState.books.filter(prevBook => prevBook.id !== book.id), book]
-      }));
+      const { results } = this.state;
+      const index = results.findIndex(result => result.id === book.id);
+      results[index].shelf = shelf;
+      this.setState({ results: results });
       BooksAPI.update(book, shelf);
     }
 
@@ -32,53 +24,41 @@ class Search extends React.Component {
       const query = event.target.value;
       this.setState({ query: query });
       if(query.length > 1)
-      	BooksAPI
+      	this.search();
+      else
+        this.setState({ results: [] });
+    }
+
+	search = () => {
+      	const { query } = this.state;
+   		BooksAPI
 			.search(query, this.state.maxResults)
           	.then(results => {
         		if(Array.isArray(results) && results.length)
-                  this.setState({ books: results });
+                  this.setState({ results: results });
           		else
-                  this.setState({ books: [] });
+                  this.setState({ results: [] });
         	});
-      else
-        this.setState({ books: [] });
     }
 
 	render(){
-		const { books, myBooks } = this.state;
-
+		const { results, query } = this.state;
+		const { books, loadingHandler } = this.props;
 		return <div className="search-books">
-            <div className="search-books-bar">
-              <Link className="close-search" to="/">Close</Link>
-              <div className="search-books-input-wrapper">
-              
-                <input type="text" value={this.state.query} onChange={this.handleSearchInput} placeholder="Search by title or author"/>
-
-              </div>
-            </div>
+			<SearchBar query={query} onChange={this.handleSearchInput} loadingHandler={loadingHandler} />
             <div className="search-books-results">
               	<ol className="books-grid">
-					{books.length? books.map((book, index) => <li key={index}>
-                        <div className="book">
-                          <div className="book-top">
-                            <div className="book-cover" style={{ width: 128, height: 193, backgroundImage: `url(${book.imageLinks.thumbnail})` }}></div>
-                            <div className="book-shelf-changer">
-                              <select onChange={event => this.handleBookUpdate(event, book)}>
-                                <option value="move" disabled>Move to...</option>
-								<option value="" style={{display: 'none'}}>Move to...</option>
-								{Object.keys(bookShelvesValues).map((key, index) => <option key={index} value={key}>
-									 {myBooks.filter(myBook => myBook.id === book.id).length?
-										myBooks.filter(myBook => myBook.id === book.id)[0].shelf === key && '★' : ''} {bookShelvesValues[key]}
-								</option>)}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="book-title">{book.title}</div>
-                          <div className="book-authors">{book.authors.join(', ').trim(', ')}</div>
-                        </div>
+					{results.length? results.map((book, index) => <li key={index}>
+                        <Book
+							book={book}
+							inShelf={book.shelf ? book.shelf
+                                     : books.findIndex(myBook => myBook.id === book.id) > -1
+									 ? books[books.findIndex(myBook => myBook.id === book.id)].shelf
+									 : false }
+							updateHandler={this.handleResultUpdate}
+						/>
                       </li>)
 					: <div> No Results </div>}
-
 				</ol>
             </div>
           </div>
